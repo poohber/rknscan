@@ -15,9 +15,12 @@ import time
 import os.path
 import dns.resolver
 import dns.exception
+import colorama
+from termcolor import colored
 from queue import Queue, Empty
 from requests.exceptions import ConnectionError
 
+colorama.init()
 parser = OptionParser()
 parser.add_option("-r", "--regexp", dest="regexp", help="Установить регулярное выражение, по которому будет матчиться вывод открываемой страницы (тут необходимо указать какой-либо кусок со страницы заглушки)")
 parser.add_option("-v", "--verbose", dest="verbose", help="Увеличить вербозность (для дебага)", action="store_true")
@@ -186,20 +189,20 @@ def test_dpi():
         dpi_built_tests = _dpi_build_tests(site['host'], site['urn'], site['ip'], site['lookfor'])
         for testname in dpi_built_tests:
             test = dpi_built_tests[testname]
-            print("\tПробуем способ «{}» на {}".format(testname, dpisite))
+            print("\tПробуем способ \"{}\" на {}".format(testname, dpisite))
             try:
                 result = _dpi_send(test.get('ip'), 80, test.get('data'), test.get('fragment_size'), test.get('fragment_count'))
             except Exception as e:
-                print("\033[1;32m[✓] Ошибка:", repr(e)+"\033[0m")
+                print(colored("[ok] Ошибка:"+ repr(e),'green'))
             else:
                 if result.split("\n")[0].find('200 ') != -1 and result.find(test['lookfor']) != -1:
-                    print("\033[1;31m[☠] Сайт открывается\033[0m")
+                    print(colored("[f] Сайт открывается",'red'))
                     dpiresults.append(testname)
                 elif result.split("\n")[0].find('200 ') == -1 and result.find(test['lookfor']) != -1:
                     print("[!] Сайт не открывается, обнаружен пассивный DPI!")
                     dpiresults.append('Passive DPI')
                 else:
-                    print("\033[1;32m[✓] Сайт не открывается\033[0m")
+                    print(colored("[ok] Сайт не открывается",'green'))
     return list(set(dpiresults))
 
 def test_dns():
@@ -215,7 +218,7 @@ def test_dns():
         print("\tЭталонные адреса:\t\t", str(remote_dns))
     except:
         remote_dns = None
-        print("\033[1;31m[☠] Не удалось получить DNS с сервера, результаты могут быть неточными\033[0m")
+        print(colored("[f] Не удалось получить DNS с сервера, результаты могут быть неточными",'red'))
 
     resolved_default_dns = _get_a_records(sites_list, timeout)
     if resolved_default_dns:
@@ -239,10 +242,10 @@ def test_dns():
         dns_records = sorted([item for sublist in sites.values() for item in sublist])
     if resolved_default_dns == resolved_google_dns:
         if resolved_default_dns == dns_records:
-            print("\033[1;32m[✓] DNS-записи не подменяются\033[0m")
+            print(colored("[ok] DNS-записи не подменяются",'green'))
             return 0
         else:
-            print("\033[1;31m[☠] DNS-записи подменяются\033[0m")
+            print(colored("[f] DNS-записи подменяются",'red'))
             return 2
 
     print("[?] Способ блокировки DNS определить не удалось")
@@ -298,7 +301,7 @@ class WorkerThread(Thread):
             return
         if not re.findall(r'%s'%self.regexp,page):
             opend.append(nexturl)
-            print(" [☠] Открылся: "+nexturl)
+            print(" [f] Открылся: "+nexturl)
     elif nextproto in ['newcamd525','mgcamd525']:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if not sock.connect_ex((domain, int(port))):opend.append(nextproto+"://"+nexturl)
@@ -396,9 +399,9 @@ for x in range(0,n_threads-1):
 
 print()
 perc = len(opend)*100/total
-print("[☠]", end="") if perc else print("[✓]",end="")
-print (" Процент открывшихся сайтов: "+str(perc)+"%")
+print(colored("[f]",'cyan'), end="") if perc else print(colored("[ok]",'cyan'),end="")
+print (colored(" Процент открывшихся сайтов: "+str(perc)+"%",'cyan'))
 if perc:
-    print("[☠] Открывшиеся сайты:")
+    print(colored("[f] Открывшиеся сайты:",'red'))
     for url in opend:
-        print("\t[☠] "+url)
+        print(colored("\t[f] "+url,'red'))

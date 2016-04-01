@@ -7,6 +7,8 @@ pyOpenSSL
 ndg-httpsclient 
 pyasn1 
 dnspython3
+colorama
+termcolor
 ```
 
 ## Usage
