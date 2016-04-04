@@ -33,6 +33,7 @@ Options:
                         Запрет на добавление в выборку URL адресов, с
                         замененным доменом на IP адрес (в случае реестра
                         Роскомнадзора)
+  -c, --console         Запуск в консольном режиме (без интерактива)
 
 ```
 
@@ -41,5 +42,5 @@ If we are going to check RKN registry - firstly we have to download it (dump.xml
 typically command to run:
 
 ```
-python3 rknscan.py -t 5 -n 700
+python3 rknscan.py -t 5 -n 700 -c
 ```
