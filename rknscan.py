@@ -275,6 +275,7 @@ def test_dns():
 class WorkerThread(Thread):
   def __init__(self,url_list,url_list_lock,regexp,timeout,verbose):
     super(WorkerThread,self).__init__()
+    self.kill_received=False
     self.url_list=url_list
     self.url_list_lock=url_list_lock
     self.regexp=regexp
@@ -285,7 +286,7 @@ class WorkerThread(Thread):
     self._stop.set()
     
   def run(self):
-    while (1):
+    while not self.kill_received:
       nextproto, nexturl, needresolve = self.grab_next_url()
       if nexturl==None:break
       self.retrieve_url(nextproto,nexturl,needresolve)
@@ -356,7 +357,7 @@ input("Нажмите Enter чтобы продолжить...")
 
 if f=='':
     if not os.path.isfile('dump.xml'):
-        print(colored("Can't find dump.xml in this directory",'red'))
+        print(colored("Не могу найти dump.xml в этой директории",'red'))
         input("Нажмите Enter чтобы выйти...")
         exit(2)
 
@@ -433,14 +434,15 @@ workerthreadlist=[]
 for x in range(0,n_threads-1):
     newthread = WorkerThread(url_list,url_list_lock,regexp,timeout,verbose)
     workerthreadlist.append(newthread)
+    newthread.start()
+
+while len(workerthreadlist) > 0:
     try:
-        newthread.start()
-    except (KeyboardInterrupt, SystemExit):
-        newthread.stop()
-        exit(0)
-        
-for x in range(0,n_threads-1):
-    workerthreadlist[x].join()
+        workerthreadlist = [t.join(1) for t in workerthreadlist if t is not None and t.isAlive()]
+    except KeyboardInterrupt:
+        print("\nCtrl-c! Остановка всех потоков...")
+        for t in workerthreadlist:
+            t.kill_received = True
 
 print()
 perc = len(opend)*100/total
