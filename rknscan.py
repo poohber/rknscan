@@ -5,14 +5,13 @@ import urllib.parse
 import urllib.error
 import xml.etree.ElementTree as ET
 import re
-import random
 from optparse import OptionParser
 from threading import Thread, Lock
 import socket
 import requests
 import string
 import time
-import os.path
+import os
 import dns.resolver
 import dns.exception
 import colorama
@@ -24,10 +23,11 @@ colorama.init()
 parser = OptionParser()
 parser.add_option("-r", "--regexp", dest="regexp", help="Установить регулярное выражение, по которому будет матчиться вывод открываемой страницы (тут необходимо указать какой-либо кусок со страницы заглушки)")
 parser.add_option("-v", "--verbose", dest="verbose", help="Увеличить вербозность (для дебага)", action="store_true")
-parser.add_option("-n", "--numthreads", dest="n_threads", help="Установить количество потоков (defaul=50)")
+parser.add_option("-n", "--numthreads", dest="n_threads", help="Установить количество потоков (defaul=500)")
 parser.add_option("-t", "--timeout", dest="timeout", help="Таймаут по истечению которого неответивший сайт считается недоступным (default=3)")
 parser.add_option("-f", "--file", dest="file", help="Указать файл с перечнем URL для проверки (НЕ в случае реестра Роскомнадзора)")
 parser.add_option("-s", "--substituteipnone", dest="notsubstitute", help="Запрет на добавление в выборку URL адресов, с замененным доменом на IP адрес (в случае реестра Роскомнадзора)", action="store_true")
+parser.add_option("-c", "--console", dest="console", help="Запуск в консольном режиме (без интерактива)", action="store_true")
 
 (options, args) = parser.parse_args()
 
@@ -35,10 +35,23 @@ parser.add_option("-s", "--substituteipnone", dest="notsubstitute", help="Зап
 
 regexp = "logo_eco.png" if not options.regexp else options.regexp
 timeout = 3 if not options.timeout else int(options.timeout)
-n_threads = 50 if not options.n_threads else int(options.n_threads)
+n_threads = 500 if not options.n_threads else int(options.n_threads)
 verbose = 0 if not options.verbose else int(options.verbose)
+f = '' if not options.file else options.file
+
 
 if options.timeout:options.timeout=float(options.timeout)
+
+if not options.console:
+    regexp = input("Введите регулярное выражение, для поиска на странице-заглушке: ")
+    timeout = input("Введите таймаут по истечению которого неответивший сайт будет считаться недоступным (3): ")
+    n_threads = input("Введите количество потоков (500): ")
+    f =  input("Введите имя файла для проверки (пусто если проверяем реестр РКН): ")
+
+    verbose = 0
+    regexp = "logo_eco.png" if regexp=='' else regexp
+    timeout = 3 if not timeout else int(timeout)
+    n_threads = 500 if not n_threads else int(n_threads)
 
 
 dns_records_list = {"gelbooru.com": ['5.178.68.100'],
@@ -80,10 +93,15 @@ def _get_a_record(site, timeout=3, dnsserver=None):
         try:
             try:
                 answer=resolver.query(site)
-            except:
+            except Exception as e:
+                #print(" Невозможно зарезолвить сайт: "+site)
                 return False
-            for item in answer.rrset.items:
-                result.append(item.to_text())
+            for item in answer.rrset.items:    
+                item = item.to_text()
+                if '#' in item:
+                    hex_data = item.split(" ")[2]
+                    item="%i.%i.%i.%i" % (int(hex_data[0:2],16),int(hex_data[2:4],16),int(hex_data[4:6],16),int(hex_data[6:8],16))
+                result.append(item)
             return result
 
         except dns.exception.Timeout:
@@ -232,8 +250,9 @@ def test_dns():
         print("\tНе удалось подключиться к Google DNS")
 
     if not resolved_google_dns or not resolved_default_dns:
-        exit("Проблема с разрешением DNS на системном, либо google сервере")
-        return 1
+        print(colored("Проблема с разрешением DNS на системном, либо google сервере",'red'))
+        input("Нажмите Enter чтобы выйти...")
+        exit(1)
     
     if (remote_dns):
         # Если получили IP с сервера, используем их
@@ -261,6 +280,9 @@ class WorkerThread(Thread):
     self.regexp=regexp
     self.timeout=timeout
     self.verbose=verbose
+  
+  def stop(self):
+    self._stop.set()
     
   def run(self):
     while (1):
@@ -291,12 +313,15 @@ class WorkerThread(Thread):
     domain, port = getdomain(nexturl,nextproto)
     if needresolve:
         #ip = gethostbyname_or_timeout(domain, timeout_secs = 0.5)
-        ip = _get_a_record(domain, options.timeout)
+        ip = _get_a_record(domain, self.timeout)
         if not ip or '127.0.0.1' in ip:
             return False
     if nextproto in ['http','https']:
         try:
-            page = requests.get(nexturl,timeout=self.timeout).text
+            if os.path.isfile('cacert.pem'):
+                page = requests.get(nexturl,timeout=self.timeout,verify='cacert.pem').text
+            else:
+                page = requests.get(nexturl,timeout=self.timeout).text
         except Exception as e:
             return
         if not re.findall(r'%s'%self.regexp,page):
@@ -324,43 +349,56 @@ def getdomain(url, proto):
         return res[0].split(':')
     return [res[0], '80']
 
+
 test_dns()
 test_dpi()
 input("Нажмите Enter чтобы продолжить...")
 
-if not options.file:
-    if not os.path.isfile('dump.xml'):exit("Can't find dump.xml in this directory")
-else:
-    if not os.path.isfile(options.file):exit("Can't find "+options.file)
+if f=='':
+    if not os.path.isfile('dump.xml'):
+        print(colored("Can't find dump.xml in this directory",'red'))
+        input("Нажмите Enter чтобы выйти...")
+        exit(2)
 
+else:
+    if not os.path.isfile(f):
+        print(colored("Can't find "+f,'red'))
+        input("Нажмите Enter чтобы выйти...")
+        exit(3)
 
 opend=[]    
 
 #"""
 url_list = []
-dump = ET.parse('dump.xml')
-root = dump.getroot()
 
-if options.file:
-    f = open(options.file,'r')
+if f!='':
+    f = open(f,'r')
     for line in f:
         url = line.strip()
         if not urlregex.match(url): 
-            exit('wrong url: '+url) 
+            print(colored('wrong url: '+url,'red')) 
+            input("Нажмите Enter чтобы выйти...")
+            exit(4)
         proto = getproto(url)
         if not proto in ['http','https','newcamd525','mgcamd525']: 
-            exit("Ошибка определения протокола: "+url)
+            print(colored("Ошибка определения протокола: "+url,'red'))
+            input("Нажмите Enter чтобы выйти...")
+            exit(5)
         urldomain, port = getdomain(url,proto)
         url_list.append([proto]+[url]+[True])
     f.close()
 else:
+    dump = ET.parse('dump.xml')
+    root = dump.getroot()
     for content in root:
-        #if content.attrib['id']!=str(257598):
+        #if content.attrib['id']!=str(76487):
         #    continue
         ips = domains = urls = urldomain = port = proto = None
         ips = content.findall('ip')
         if not ips:
-            exit("Can't find IP of content with id = " + content.attrib['id'])
+            print(colored("Can't find IP of content with id = " + content.attrib['id'],'red'))
+            input("Нажмите Enter чтобы выйти...")
+            exit(6)
         domains = content.findall('domain')
         urls = content.findall('url')
         if urls:
@@ -385,15 +423,22 @@ else:
     #print(url_list);exit(0)
 total = len(url_list)
 print("[O] Количество URL для проверки: " + str(total))
-if total==0: exit("Nothing to do")
+if total==0:
+    print("Nothing to do")
+    input("Нажмите Enter чтобы выйти...")
+    exit(0)
+
 url_list_lock = Lock()
-
-
 workerthreadlist=[]
 for x in range(0,n_threads-1):
     newthread = WorkerThread(url_list,url_list_lock,regexp,timeout,verbose)
     workerthreadlist.append(newthread)
-    newthread.start()
+    try:
+        newthread.start()
+    except (KeyboardInterrupt, SystemExit):
+        newthread.stop()
+        exit(0)
+        
 for x in range(0,n_threads-1):
     workerthreadlist[x].join()
 
@@ -405,3 +450,4 @@ if perc:
     print(colored("[f] Открывшиеся сайты:",'red'))
     for url in opend:
         print(colored("\t[f] "+url,'red'))
+    input("Нажмите Enter чтобы выйти...")
