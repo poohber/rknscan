@@ -26,7 +26,7 @@ parser.add_option("-v", "--verbose", dest="verbose", help="Увеличить в
 parser.add_option("-n", "--numthreads", dest="n_threads", help="Установить количество потоков (defaul=500)")
 parser.add_option("-t", "--timeout", dest="timeout", help="Таймаут по истечению которого неответивший сайт считается недоступным (default=3)")
 parser.add_option("-f", "--file", dest="file", help="Указать файл с перечнем URL для проверки (НЕ в случае реестра Роскомнадзора)")
-parser.add_option("-s", "--substituteipnone", dest="notsubstitute", help="Запрет на добавление в выборку URL адресов, с замененным доменом на IP адрес (в случае реестра Роскомнадзора)", action="store_true")
+parser.add_option("-s", "--substituteip", dest="substitute", help="Добавление в выборку URL адресов, с замененным доменом на IP адрес (в случае реестра Роскомнадзора)", action="store_true")
 parser.add_option("-c", "--console", dest="console", help="Запуск в консольном режиме (без интерактива)", action="store_true")
 
 (options, args) = parser.parse_args()
@@ -38,21 +38,45 @@ timeout = 3 if not options.timeout else int(options.timeout)
 n_threads = 500 if not options.n_threads else int(options.n_threads)
 verbose = 0 if not options.verbose else int(options.verbose)
 f = '' if not options.file else options.file
-
+substitute = options.substitute
 
 if options.timeout:options.timeout=float(options.timeout)
 
+
+def query_yes_no(question, default="yes"):
+    valid = {"yes": True, "y": True, "ye": True,
+             "no": False, "n": False}
+    if default is None:
+        prompt = " [y/n] "
+    elif default == "yes":
+        prompt = " [Y/n] "
+    elif default == "no":
+        prompt = " [y/N] "
+    else:
+        raise ValueError("invalid default answer: '%s'" % default)
+
+    while True:
+        print(question + prompt, end="")
+        choice = input().lower()
+        if default is not None and choice == '':
+            return valid[default]
+        elif choice in valid:
+            return valid[choice]
+        else:
+            print(colored("Пожалуйста введите 'yes' или 'no' "
+                             "(или 'y' или 'n').", 'red'))
+
 if not options.console:
-    regexp = input("Введите регулярное выражение, для поиска на странице-заглушке: ")
+    regexp = input("Введите регулярное выражение для поиска на странице-заглушке: ")
     timeout = input("Введите таймаут по истечению которого неответивший сайт будет считаться недоступным (3): ")
     n_threads = input("Введите количество потоков (500): ")
     f =  input("Введите имя файла для проверки (пусто если проверяем реестр РКН): ")
+    substitute = query_yes_no("Добавлять в выборку url с заменой domain на ip адрес ресурса?")
 
     verbose = 0
     regexp = "logo_eco.png" if regexp=='' else regexp
     timeout = 3 if not timeout else int(timeout)
     n_threads = 500 if not n_threads else int(n_threads)
-
 
 dns_records_list = {"gelbooru.com": ['5.178.68.100'],
                     "e621.net": ['162.159.243.197', '162.159.244.197'],
@@ -76,6 +100,9 @@ urlregex = re.compile(
                 r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})' # ...or ip
                 r'(?::\d+)?' # optional port
                 r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+
+
 
 def _decode_bytes(input_bytes):
     return input_bytes.decode(errors='replace')
@@ -407,7 +434,7 @@ else:
                 proto = getproto(url.text)
                 urldomain, port = getdomain(url.text,proto)
                 url_list.append([proto]+[url.text]+[True])
-                if not options.notsubstitute:
+                if substitute:
                     for ip in ips:
                         url_list.append([proto]+[domain2ip_url(url.text, ip.text, port, proto)]+[False])
         else:
@@ -415,7 +442,7 @@ else:
                 for domain in domains:
                     url_list.append(['http',"http://" + domain.text]+[True])
                     url_list.append(['https',"https://" + domain.text]+[True])
-            if not options.notsubstitute:
+            if substitute:
                 for ip in ips:
                     url_list.append(['http',"http://" + ip.text]+[False])
                     url_list.append(['https',"https://" + ip.text]+[False])
