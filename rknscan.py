@@ -342,7 +342,7 @@ class WorkerThread(Thread):
     if needresolve:
         #ip = gethostbyname_or_timeout(domain, timeout_secs = 0.5)
         ip = _get_a_record(domain, self.timeout)
-        if not ip or '127.0.0.1' in ip:
+        if not ip or '127.0.0.1' in ip or '0.0.0.0' in ip:
             return False
     if nextproto in ['http','https']:
         try:
