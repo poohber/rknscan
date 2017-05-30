@@ -117,7 +117,6 @@ def _get_a_record(site, timeout=3, dnsserver=None):
 
     if dnsserver:
         resolver.nameservers = [dnsserver]
-
     result = []
     while len(resolver.nameservers):
         try:
@@ -137,7 +136,6 @@ def _get_a_record(site, timeout=3, dnsserver=None):
 
         except dns.exception.Timeout:
             resolver.nameservers.remove(resolver.nameservers[0])
-
     # If all the requests failed
     return False
 
@@ -280,7 +278,6 @@ def test_dns():
         print(colored("Проблема с разрешением DNS на системном, либо google сервере",'red'))
         input("Нажмите Enter чтобы выйти...")
         exit(1)
-
     if (remote_dns):
         # Если получили IP с сервера, используем их
         dns_records = remote_dns
@@ -353,6 +350,10 @@ class WorkerThread(Thread):
             return
         if not re.findall(r'%s'%self.regexp,page):
             opend.append(nexturl)
+            a = nexturl.split("/")[2]
+            f = open ('./opend/'+a,'w')
+            f.write(page)
+            f.close
             print(" [f] Открылся: "+nexturl)
     elif nextproto in ['newcamd525','mgcamd525']:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -377,8 +378,8 @@ def getdomain(url, proto):
     return [res[0], '80']
 
 
-test_dns()
-test_dpi()
+#test_dns()
+#test_dpi()
 input("Нажмите Enter чтобы продолжить...")
 
 if f=='':
@@ -439,7 +440,7 @@ else:
                 proto = getproto(url.text)
                 urldomain, port = getdomain(url.text,proto)
                 url_list.append([proto]+[url.text]+[True])
-                if substitute:
+                if substitute and ips:
                     for ip in ips:
                         url_list.append([proto]+[domain2ip_url(url.text, ip, port, proto)]+[False])
         else:
@@ -447,7 +448,7 @@ else:
                 for domain in domains:
                     url_list.append(['http',"http://" + domain.text]+[True])
                     url_list.append(['https',"https://" + domain.text]+[True])
-            if substitute:
+            if substitute and ips:
                 for ip in ips:
                     url_list.append(['http',"http://" + ip]+[False])
                     url_list.append(['https',"https://" + ip]+[False])
