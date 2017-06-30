@@ -1,4 +1,4 @@
-#-*- coding: utf-8 -*-
+﻿#-*- coding: utf-8 -*-
 #from urllib import urlopen
 import urllib.request
 import urllib.parse
@@ -18,6 +18,7 @@ import colorama
 from termcolor import colored
 from queue import Queue, Empty
 from requests.exceptions import ConnectionError
+import datetime
 
 colorama.init()
 parser = OptionParser()
@@ -78,17 +79,12 @@ if not options.console:
     timeout = 3 if not timeout else int(timeout)
     n_threads = 500 if not n_threads else int(n_threads)
 
-dns_records_list = {"gelbooru.com": ['5.178.68.100'],
-                    "e621.net": ['162.159.243.197', '162.159.244.197'],
-                    "sukebei.nyaa.se": ['69.165.95.242'],
+dns_records_list = {"e621.net": ['162.159.243.197', '162.159.244.197'],
                     "2chru.net": ['162.159.251.219', '198.41.249.219']}
 
 dpi_list =   {'rutracker.org':
                 {'host': 'rutracker.org', 'urn': '/forum/index.php',
                  'lookfor': 'groupcp.php"', 'ip': '195.82.146.214'},
-              'gelbooru.com':
-                {'host': 'gelbooru.com', 'urn': '/index.php?page=post&s=view&id=1989610',
-                 'lookfor': 'Gelbooru- Image View', 'ip': '5.178.68.100'},
              }
              
 google_dns = '8.8.4.4'
@@ -114,7 +110,6 @@ def _get_a_record(site, timeout=3, dnsserver=None):
 
     if dnsserver:
         resolver.nameservers = [dnsserver]
-        
     result = []
     while len(resolver.nameservers):
         try:
@@ -342,7 +337,7 @@ class WorkerThread(Thread):
     if needresolve:
         #ip = gethostbyname_or_timeout(domain, timeout_secs = 0.5)
         ip = _get_a_record(domain, self.timeout)
-        if not ip or '127.0.0.1' in ip or '0.0.0.0' in ip:
+        if not ip or '127.0.0.1' in ip:
             return False
     if nextproto in ['http','https']:
         try:
@@ -354,6 +349,11 @@ class WorkerThread(Thread):
             return
         if not re.findall(r'%s'%self.regexp,page):
             opend.append(nexturl)
+            a = nexturl.split("/")[2]
+            #print("=========="+a)
+            f = open ('./opend/'+a,'w')
+            f.write(page)
+            f.close
             print(" [f] Открылся: "+nexturl)
     elif nextproto in ['newcamd525','mgcamd525']:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -378,9 +378,9 @@ def getdomain(url, proto):
     return [res[0], '80']
 
 
-test_dns()
-test_dpi()
-input("Нажмите Enter чтобы продолжить...")
+#test_dns()
+#test_dpi()
+#input("Нажмите Enter чтобы продолжить...")
 
 if f=='':
     if not os.path.isfile('dump.xml'):
@@ -398,7 +398,6 @@ opend=[]
 
 #"""
 url_list = []
-
 if f!='':
     f = open(f,'r')
     for line in f:
@@ -420,13 +419,13 @@ else:
     root = dump.getroot()
     for content in root:
         #if content.attrib['id']!=str(76487):
-        #    continue
+        #   continue
         ips = domains = urls = urldomain = port = proto = None
         ips = content.findall('ip')
         if not ips:
             print(colored("Can't find IP of content with id = " + content.attrib['id'],'red'))
-            input("Нажмите Enter чтобы выйти...")
-            exit(6)
+            #input("Нажмите Enter чтобы выйти...")
+            #exit(6)
         domains = content.findall('domain')
         urls = content.findall('url')
         if urls:
@@ -448,7 +447,7 @@ else:
                     url_list.append(['https',"https://" + ip.text]+[False])
     
 
-    #print(url_list);exit(0)
+# print(url_list);exit(0)
 total = len(url_list)
 print("[O] Количество URL для проверки: " + str(total))
 if total==0:
@@ -479,4 +478,5 @@ if perc:
     print(colored("[f] Открывшиеся сайты:",'red'))
     for url in opend:
         print(colored("\t[f] "+url,'red'))
-    input("Нажмите Enter чтобы выйти...")
+ #   input("Нажмите Enter чтобы выйти...")
+
