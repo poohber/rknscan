@@ -90,7 +90,7 @@ dpi_list =   {'rutracker.org':
                 {'host': 'gelbooru.com', 'urn': '/index.php?page=post&s=view&id=1989610',
                  'lookfor': 'Gelbooru- Image View', 'ip': '5.178.68.100'},
              }
-             
+
 google_dns = '8.8.4.4'
 
 urlregex = re.compile(
@@ -114,7 +114,7 @@ def _get_a_record(site, timeout=3, dnsserver=None):
 
     if dnsserver:
         resolver.nameservers = [dnsserver]
-        
+
     result = []
     while len(resolver.nameservers):
         try:
@@ -123,7 +123,7 @@ def _get_a_record(site, timeout=3, dnsserver=None):
             except Exception as e:
                 #print(" Невозможно зарезолвить сайт: "+site)
                 return False
-            for item in answer.rrset.items:    
+            for item in answer.rrset.items:
                 item = item.to_text()
                 if '#' in item:
                     hex_data = item.split(" ")[2]
@@ -150,7 +150,7 @@ def _get_a_records(sitelist, timeout, dnsserver=None):
             print("[!] Невозможно получить DNS-запись для домена {} (NXDOMAIN). Результаты могут быть неточными.".format(site))
         except dns.exception.DNSException:
             return ""
-    
+
     return sorted(result)
 
 def _dpi_send(host, port, data, fragment_size=0, fragment_count=0):
@@ -280,7 +280,7 @@ def test_dns():
         print(colored("Проблема с разрешением DNS на системном, либо google сервере",'red'))
         input("Нажмите Enter чтобы выйти...")
         exit(1)
-    
+
     if (remote_dns):
         # Если получили IP с сервера, используем их
         dns_records = remote_dns
@@ -308,16 +308,16 @@ class WorkerThread(Thread):
     self.regexp=regexp
     self.timeout=timeout
     self.verbose=verbose
-  
+
   def stop(self):
     self._stop.set()
-    
+
   def run(self):
     while not self.kill_received:
       nextproto, nexturl, needresolve = self.grab_next_url()
       if nexturl==None:break
       self.retrieve_url(nextproto,nexturl,needresolve)
-        
+
   def grab_next_url(self):
     self.url_list_lock.acquire(1)
     if len(self.url_list)<1:
@@ -329,12 +329,12 @@ class WorkerThread(Thread):
       del self.url_list[0]
       percdone = float((total-len(url_list))*100/total)
       s = "Done: %1.2f%%"%percdone
-      print("\b"*len(s)+s, end="") 
+      print("\b"*len(s)+s, end="")
       #print end="")
     self.url_list_lock.release()
     return [nextproto,nexturl,needresolve]
-        
-        
+
+
   def retrieve_url(self,nextproto,nexturl,needresolve):
     #print ("====%s %r==="%(nexturl,needresolve))
     if self.verbose:print ('################### %s - %s - %r #######################' % (nextproto,nexturl,needresolve))
@@ -358,7 +358,7 @@ class WorkerThread(Thread):
     elif nextproto in ['newcamd525','mgcamd525']:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if not sock.connect_ex((domain, int(port))):opend.append(nextproto+"://"+nexturl)
-    else: 
+    else:
         print("Unknown proto: "+nextproto)
         return False
 
@@ -378,7 +378,7 @@ def getdomain(url, proto):
     return [res[0], '80']
 
 
-test_dns()
+#test_dns()
 test_dpi()
 input("Нажмите Enter чтобы продолжить...")
 
@@ -394,7 +394,7 @@ else:
         input("Нажмите Enter чтобы выйти...")
         exit(3)
 
-opend=[]    
+opend=[]
 
 #"""
 url_list = []
@@ -403,12 +403,12 @@ if f!='':
     f = open(f,'r')
     for line in f:
         url = line.strip()
-        if not urlregex.match(url): 
-            print(colored('wrong url: '+url,'red')) 
+        if not urlregex.match(url):
+            print(colored('wrong url: '+url,'red'))
             input("Нажмите Enter чтобы выйти...")
             exit(4)
         proto = getproto(url)
-        if not proto in ['http','https','newcamd525','mgcamd525']: 
+        if not proto in ['http','https','newcamd525','mgcamd525']:
             print(colored("Ошибка определения протокола: "+url,'red'))
             input("Нажмите Enter чтобы выйти...")
             exit(5)
@@ -425,8 +425,8 @@ else:
         ips = content.findall('ip')
         if not ips:
             print(colored("Can't find IP of content with id = " + content.attrib['id'],'red'))
-            input("Нажмите Enter чтобы выйти...")
-            exit(6)
+#            input("Нажмите Enter чтобы выйти...")
+#            exit(6)
         domains = content.findall('domain')
         urls = content.findall('url')
         if urls:
@@ -446,7 +446,7 @@ else:
                 for ip in ips:
                     url_list.append(['http',"http://" + ip.text]+[False])
                     url_list.append(['https',"https://" + ip.text]+[False])
-    
+
 
     #print(url_list);exit(0)
 total = len(url_list)
