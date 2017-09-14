@@ -1,14 +1,13 @@
-#RKNScanner
+# RKNScanner
 Scanner for testing DPI + ability to scan Roskomnadzor registry and custom lists
 
-##Requirements
+## Requirements
 ```
-pyOpenSSL 
-ndg-httpsclient 
-pyasn1 
-dnspython3
-colorama
-termcolor
+pip3 install dnspython3
+pip3 install colorama
+pip3 install termcolor
+pip3 install netaddr
+pip3 install requests
 ```
 
 ## Usage
