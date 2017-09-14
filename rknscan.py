@@ -16,6 +16,7 @@ import dns.resolver
 import dns.exception
 import colorama
 from termcolor import colored
+from netaddr import IPNetwork
 from queue import Queue, Empty
 from requests.exceptions import ConnectionError
 
@@ -78,17 +79,19 @@ if not options.console:
     timeout = 3 if not timeout else int(timeout)
     n_threads = 500 if not n_threads else int(n_threads)
 
-dns_records_list = {"gelbooru.com": ['5.178.68.100'],
-                    "e621.net": ['162.159.243.197', '162.159.244.197'],
-                    "sukebei.nyaa.se": ['69.165.95.242'],
-                    "2chru.net": ['162.159.251.219', '198.41.249.219']}
+dns_records_list = {"rutracker.org": ['195.82.146.214'],
+                    "grani.org": ['72.52.4.120'],
+                    "e621.net": ['104.24.11.70', '104.24.10.70'],
+                    "ipvnews.org": ['85.31.101.152']
+                    }
 
-dpi_list =   {'rutracker.org':
-                {'host': 'rutracker.org', 'urn': '/forum/index.php',
-                 'lookfor': 'groupcp.php"', 'ip': '195.82.146.214'},
-              'gelbooru.com':
-                {'host': 'gelbooru.com', 'urn': '/index.php?page=post&s=view&id=1989610',
-                 'lookfor': 'Gelbooru- Image View', 'ip': '5.178.68.100'},
+dpi_list =   {
+            'rutracker.org':
+               {'host': 'rutracker.org', 'urn': '/forum/index.php',
+                'lookfor': 'groupcp.php"', 'ip': '195.82.146.214'},
+              'ipvnews.org':
+                {'host': 'ipvnews.org', 'urn': '/hegemon.php',
+                 'lookfor': 'pandora.php', 'ip': '85.31.101.152'},
              }
 
 google_dns = '8.8.4.4'
@@ -150,7 +153,6 @@ def _get_a_records(sitelist, timeout, dnsserver=None):
             print("[!] Невозможно получить DNS-запись для домена {} (NXDOMAIN). Результаты могут быть неточными.".format(site))
         except dns.exception.DNSException:
             return ""
-
     return sorted(result)
 
 def _dpi_send(host, port, data, fragment_size=0, fragment_count=0):
@@ -253,24 +255,21 @@ def test_dpi():
 def test_dns():
     sites = dns_records_list
     sites_list = list(sites.keys())
-
     print("[O] Тестируем DNS")
     print("[O] Получаем эталонные DNS с сервера")
     try:
-        remote_dns = urllib.request.urlopen("http://blockcheck.antizapret.prostovpn.org/getdns.php",
-            timeout=10).read()
-        remote_dns = _decode_bytes(remote_dns).split()
+        remote_dns = urllib.request.urlopen("http://tac.rdp.ru/pub/getdns.php", timeout=10).read()
+        remote_dns = sorted(_decode_bytes(remote_dns).split())
         print("\tЭталонные адреса:\t\t", str(remote_dns))
     except:
         remote_dns = None
         print(colored("[f] Не удалось получить DNS с сервера, результаты могут быть неточными",'red'))
-
-    resolved_default_dns = _get_a_records(sites_list, timeout)
+    resolved_default_dns = sorted(_get_a_records(sites_list, timeout))
     if resolved_default_dns:
         print("\tАдреса через системные DNS:\t", str(resolved_default_dns))
     else:
         print("\tНе удалось подключиться к системному DNS")
-    resolved_google_dns = _get_a_records(sites_list, timeout, google_dns)
+    resolved_google_dns = sorted(_get_a_records(sites_list, timeout, google_dns))
     if resolved_google_dns:
         print("\tАдреса через Google DNS:\t", str(resolved_google_dns))
     else:
@@ -293,7 +292,6 @@ def test_dns():
         else:
             print(colored("[f] DNS-записи подменяются",'red'))
             return 2
-
     print("[?] Способ блокировки DNS определить не удалось")
     return 3
 
@@ -378,7 +376,7 @@ def getdomain(url, proto):
     return [res[0], '80']
 
 
-#test_dns()
+test_dns()
 test_dpi()
 input("Нажмите Enter чтобы продолжить...")
 
@@ -396,7 +394,6 @@ else:
 
 opend=[]
 
-#"""
 url_list = []
 
 if f!='':
@@ -419,14 +416,21 @@ else:
     dump = ET.parse('dump.xml')
     root = dump.getroot()
     for content in root:
-        #if content.attrib['id']!=str(76487):
-        #    continue
-        ips = domains = urls = urldomain = port = proto = None
-        ips = content.findall('ip')
-        if not ips:
-            print(colored("Can't find IP of content with id = " + content.attrib['id'],'red'))
-#            input("Нажмите Enter чтобы выйти...")
-#            exit(6)
+        # if content.attrib['id']!=str(530007):
+        #     continue
+        subs_c = ips_c = domains = urls = urldomain = port = proto = None
+        ips = []
+        ips_c = content.findall('ip')
+        subs_c = content.findall('ipSubnet')
+        if not ips_c and not subs_c:
+            print(colored("Can't find ip or ipSubnet of content with id = " + content.attrib['id'], 'red'))
+            input("Нажмите Enter чтобы выйти...")
+            exit(6)
+        for ip in ips_c:
+            ips.append(ip.text)
+        for sub in subs_c:
+            for ip in IPNetwork(sub.text):
+                ips.append(str(ip))
         domains = content.findall('domain')
         urls = content.findall('url')
         if urls:
@@ -436,7 +440,7 @@ else:
                 url_list.append([proto]+[url.text]+[True])
                 if substitute:
                     for ip in ips:
-                        url_list.append([proto]+[domain2ip_url(url.text, ip.text, port, proto)]+[False])
+                        url_list.append([proto]+[domain2ip_url(url.text, ip, port, proto)]+[False])
         else:
             if domains:
                 for domain in domains:
@@ -444,11 +448,9 @@ else:
                     url_list.append(['https',"https://" + domain.text]+[True])
             if substitute:
                 for ip in ips:
-                    url_list.append(['http',"http://" + ip.text]+[False])
-                    url_list.append(['https',"https://" + ip.text]+[False])
+                    url_list.append(['http',"http://" + ip]+[False])
+                    url_list.append(['https',"https://" + ip]+[False])
 
-
-    #print(url_list);exit(0)
 total = len(url_list)
 print("[O] Количество URL для проверки: " + str(total))
 if total==0:
