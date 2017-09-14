@@ -346,9 +346,9 @@ class WorkerThread(Thread):
     if nextproto in ['http','https']:
         try:
             if os.path.isfile('cacert.pem'):
-                page = requests.get(nexturl,timeout=self.timeout,verify='cacert.pem').text
+                page = requests.get(nexturl.replace("%20", " "),timeout=self.timeout,verify='cacert.pem').text
             else:
-                page = requests.get(nexturl,timeout=self.timeout).text
+                page = requests.get(nexturl.replace("%20", " "),timeout=self.timeout).text
         except Exception as e:
             return
         if not re.findall(r'%s'%self.regexp,page):
