@@ -131,7 +131,8 @@ def _get_a_record(site, timeout=3, dnsserver=None):
                 if '#' in item:
                     hex_data = item.split(" ")[2]
                     item="%i.%i.%i.%i" % (int(hex_data[0:2],16),int(hex_data[2:4],16),int(hex_data[4:6],16),int(hex_data[6:8],16))
-                result.append(item)
+                if (not IPNetwork(item).is_loopback()):
+                   result.append(item)
             return result
 
         except dns.exception.Timeout:
@@ -340,7 +341,7 @@ class WorkerThread(Thread):
     if needresolve:
         #ip = gethostbyname_or_timeout(domain, timeout_secs = 0.5)
         ip = _get_a_record(domain, self.timeout)
-        if not ip or '127.0.0.1' in ip or '0.0.0.0' in ip:
+        if not ip or '0.0.0.0' in ip:
             return False
     if nextproto in ['http','https']:
         try:
