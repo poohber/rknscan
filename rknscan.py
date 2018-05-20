@@ -429,9 +429,17 @@ else:
             exit(6)
         for ip in ips_c:
             ips.append(ip.text)
-        for sub in subs_c:
-            for ip in IPNetwork(sub.text):
-                ips.append(str(ip))
+
+        try:
+            blocktype = content.attrib['blockType']
+        except KeyError:
+            blocktype = "default"
+
+        if blocktype != 'ip':
+            for sub in subs_c:
+                for ip in IPNetwork(sub.text):
+                    ips.append(str(ip))
+
         domains = content.findall('domain')
         urls = content.findall('url')
         if urls:
