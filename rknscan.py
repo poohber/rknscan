@@ -2,8 +2,6 @@
 #-*- coding: utf-8 -*-
 #from urllib import urlopen
 
-
-
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -27,8 +25,6 @@ from requests.exceptions import ConnectionError
 import logging
 from color_log import log
 import datetime
-
-
 
 #turn on coloring on windows
 colorama.init()
@@ -506,7 +502,7 @@ if __name__ == '__main__':
 
     test_dns()
     test_dpi()
-    # input("Нажмите Enter чтобы продолжить...")
+    input("Нажмите Enter чтобы продолжить...")
     if f=='':
         if not os.path.isfile('dump.xml'):
             log.warning("Не могу найти dump.xml в этой директории")
@@ -571,7 +567,7 @@ if __name__ == '__main__':
     ########### TYPE-IP check ##########
     ####################################
     log.info(f"[O] Количество URL(type-ip) для проверки: {str(len(type_ip_list))}")
-    # input("Нажмите Enter чтобы перейти к проверке...")
+    input("Нажмите Enter чтобы перейти к проверке...")
     if not type_ip_list:
         log.critical(f"[f] Nothing to do")
         input("Нажмите Enter чтобы перейти к проверке url-filtering...\n")
