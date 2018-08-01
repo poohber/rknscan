@@ -1,11 +1,14 @@
 #! /usr/bin/python3
 #-*- coding: utf-8 -*-
 #from urllib import urlopen
+
+
+
 import urllib.request
 import urllib.parse
 import urllib.error
 import xml.etree.ElementTree as ET
-from random import choice
+from random import choice, randint
 import re
 from optparse import OptionParser
 from threading import Thread, Lock
@@ -23,13 +26,10 @@ from queue import Queue, Empty
 from requests.exceptions import ConnectionError
 import logging
 from color_log import log
+import datetime
 
-# Logging settings
-# FORMAT = '%(asctime)s: %(levelname)s: %(message)s' #add time annd name of log verbose
-FORMAT = '%(message)s'
-logging.basicConfig(level=logging.INFO, format=FORMAT ) # , filename='rknscan.log'
-logging.getLogger("urllib3").setLevel(logging.WARNING) #turn off urlib logging
-logging.getLogger("requests").setLevel(logging.WARNING)
+
+
 #turn on coloring on windows
 colorama.init()
 
@@ -42,6 +42,7 @@ parser.add_option("-t", "--timeout", dest="timeout", help="Таймаут по �
 parser.add_option("-f", "--file", dest="file", help="Указать файл с перечнем URL для проверки (НЕ в случае реестра Роскомнадзора)")
 parser.add_option("-s", "--substituteip", dest="substitute", help="Добавление в выборку URL адресов, с замененным доменом на IP адрес (в случае реестра Роскомнадзора)", action="store_true")
 parser.add_option("-c", "--console", dest="console", help="Запуск в консольном режиме (без интерактива)", action="store_true")
+parser.add_option("-d", "--debug", dest="debug", help="Запуск в дебаг режиме", action='store_true')
 
 (options, args) = parser.parse_args()
 
@@ -52,9 +53,18 @@ n_ip_threads = 200 if not options.n_ip_threads else int(options.n_ip_threads)
 verbose = 0 if not options.verbose else int(options.verbose)
 f = '' if not options.file else options.file
 substitute = options.substitute
+debug = 'INFO' if not options.debug else 'DEBUG'
 
 if options.timeout:options.timeout=float(options.timeout)
 
+# Logging settings
+# FORMAT = '%(asctime)s: %(levelname)s: %(message)s' #add time annd name of log verbose
+FORMAT = '%(message)s'
+logging.basicConfig(format=FORMAT) # , filename='rknscan.log' #TODO make -d as a parser oprion
+logging.getLogger("urllib3").setLevel(logging.WARNING) #turn off urlib logging 
+logging.getLogger("requests").setLevel(logging.WARNING)
+logger = logging.getLogger()
+logger.setLevel(debug)
 
 def query_yes_no(question, default="yes"):
     valid = {"yes": True, "y": True, "ye": True,
@@ -311,10 +321,8 @@ def test_dns():
     log.warning("[?] Способ блокировки DNS определить не удалось")
     return 3
 
-
-
 class WorkerThread(Thread):
-  def __init__(self,url_list,url_list_lock,regexp,timeout,verbose):
+  def __init__(self,url_list,url_list_lock,regexp,timeout,verbose, total):
     super(WorkerThread,self).__init__()
     self.kill_received=False
     self.url_list=url_list
@@ -322,6 +330,7 @@ class WorkerThread(Thread):
     self.regexp=regexp
     self.timeout=timeout
     self.verbose=verbose
+    self.total = total
 
   def stop(self):
     self._stop.set()
@@ -341,13 +350,13 @@ class WorkerThread(Thread):
     else:
       nextproto, nexturl, needresolve = self.url_list[0]
       del self.url_list[0]
-      percdone = float((total-len(url_list))*100/total)
-      s = "Done: %1.2f%%"%percdone
+      percdone = float((self.total-len(self.url_list))*100/self.total)
+      # s = "Done: %1.2f%%"%percdone
+      s = "Done: {0:.2f}".format(percdone)
       print("\b"*len(s)+s, end="")
       #print end="")
     self.url_list_lock.release()
     return [nextproto,nexturl,needresolve]
-
 
   def retrieve_url(self,nextproto,nexturl,needresolve):
     #print ("====%s %r==="%(nexturl,needresolve))
@@ -392,51 +401,42 @@ def getdomain(url, proto):
         return res[0].split(':')
     return [res[0], '80']
 
-
-test_dns()
-test_dpi()
-input("Нажмите Enter чтобы продолжить...")
-
-if f=='':
-    if not os.path.isfile('dump.xml'):
-        log.warning("Не могу найти dump.xml в этой директории")
+def domains_check(domain_check_list: list, checker_name: str, n_threads=n_threads, regexp=regexp, timeout=timeout, verbose=verbose):
+    ''' Запускает проверку списка сайтов и следит, чтобы не было lock '''
+    opend=[]
+    total_num_sites = len(domain_check_list)
+    log.info(f"[O] Количество {checker_name} для проверки: {str(total_num_sites)}")
+    if total_num_sites == 0:
+        log.critical("Nothing to do")
         input("Нажмите Enter чтобы выйти...")
-        exit(2)
+        exit(0)
+    url_list_lock = Lock()
+    workerthreadlist=[]
+    for x in range(0,n_threads-1):
+        newthread = WorkerThread(domain_check_list,url_list_lock,regexp,timeout,verbose,total_num_sites)
+        workerthreadlist.append(newthread)
+        newthread.start()
+    while len(workerthreadlist) > 0:
+        try:
+            workerthreadlist = [t.join(1) for t in workerthreadlist if t is not None and t.isAlive()]
+        except KeyboardInterrupt:
+            log.warning("\nCtrl-c! Остановка всех потоков...")
+            for t in workerthreadlist:
+                t.kill_received = True
+            exit(0)
+    print()
+    perc = len(opend)*100/total_num_sites
+    print(colored("[f]",'cyan'), end="") if perc else print(colored("[ok]",'cyan'),end="")
+    print (colored(f" Процент открывшихся {checker_name}: {str(perc)}%", 'cyan'))
+    if perc:
+        log.warning(f"[f] Открывшиеся {checker_name}:")
+        for url in opend:
+            log.warning(f"\t[f] {url}")
 
-else:
-    if not os.path.isfile(f):
-        log.warning(f"Can't find {f}")
-        input("Нажмите Enter чтобы выйти...")
-        exit(3)
-
-opend=[]
-
-url_list = []
-type_ip_list = []
-
-if f!='':
-    f = open(f,'r')
-    for line in f:
-        url = line.strip()
-        if not urlregex.match(url):
-            log.warning(f'wrong url: {url}')
-            input("Нажмите Enter чтобы выйти...")
-            exit(4)
-        proto = getproto(url)
-        if not proto in ['http','https','newcamd525','mgcamd525']:
-            log.warning(f"Ошибка определения протокола: {url}")
-            input("Нажмите Enter чтобы выйти...")
-            exit(5)
-        urldomain, port = getdomain(url,proto)
-        url_list.append([proto]+[url]+[True])
-    f.close()
-else:
-    log.info("[ok] Начали разбирать dump.xml")
-    dump = ET.parse('dump.xml')
+def dump_parse(dump_path: str):
+    dump = ET.parse(dump_path)
     root = dump.getroot()
     for content in root:
-        # if content.attrib['id']!=str(530007):
-        #     continue
         subs_c = ips_c = domains = urls = urldomain = port = proto = founded_type_ip = None
         ips = []
         ips_c = content.findall('ip')
@@ -455,25 +455,12 @@ else:
                 for ip in ips:
                     for ip in IPNetwork(ip.text):
                         ips_from_ip.append(str(ip))
-                # for ipSub in ipSubs:
-                #     for i, ip in enumerate(IPNetwork(ipSub.text)):
-                #         if i < 10:
-                #             ips_from_ipS.append(str(ip))
-                #         else:
-                #             break
-                # for ip in ips:
-                #     for j, ip in enumerate(IPNetwork(ip.text)):
-                #         if j < 10:
-                #             ips_from_ip.append(str(ip))
-                #         else:
-                #             break
                 if ips_from_ip:
                     type_ip_list.append(choice(ips_from_ip))
                     type_ip_list.append(choice(ips_from_ip))
                 if ips_from_ipS:
                     type_ip_list.append(choice(ips_from_ipS))
                     type_ip_list.append(choice(ips_from_ipS))
-
         for ip in ips_c:
             ips.append(ip.text)
         try:
@@ -486,8 +473,9 @@ else:
                 for ip in IPNetwork(sub.text):
                     ips.append(str(ip))
 
-        domains = content.findall('domain')
+        domains = content.findall("[@blockType='domain']")
         urls = content.findall('url')
+        domain_masks = content.findall("[@blockType='domain-mask']")
         if urls:
             for url in urls:
                 proto = getproto(url.text)
@@ -499,90 +487,134 @@ else:
         else:
             if domains:
                 for domain in domains:
-                    url_list.append(['http',"http://" + domain.text]+[True])
-                    url_list.append(['https',"https://" + domain.text]+[True])
+                    tmp_domain = domain.findall('domain')
+                    if tmp_domain:
+                        url_list.append(['http',"http://" + tmp_domain[0].text]+[True])
+                        url_list.append(['https',"https://" + tmp_domain[0].text]+[True])
             if substitute:
                 for ip in ips:
                     url_list.append(['http',"http://" + str(ip)]+[False])
                     url_list.append(['https',"https://" + str(ip)]+[False])
-total = len(url_list)
+            if domain_masks:
+                for domain_mask in domain_masks:
+                    tmp_domain_mask = domain_mask.findall('domain')
+                    if tmp_domain_mask:
+                        dott, no_asterisk_domain = tmp_domain_mask[0].text.split('*.')
+                        domain_mask_list.append(no_asterisk_domain)
 
-log.info("[O] Количество URL(type-ip) для проверки: " + str(len(type_ip_list)))
-input("Нажмите Enter чтобы перейти к проверке...")
-if not type_ip_list:
-    print("Nothing to do")
-    input("Нажмите Enter чтобы перейти к проверке url-filtering...\n")
-else:
-    from is_port_open import is_open, conn_threads, close_threads, statistics
-    import is_port_open
-    check_ip_thread_list = []
+if __name__ == '__main__':
+
+    test_dns()
+    test_dpi()
+    # input("Нажмите Enter чтобы продолжить...")
+    if f=='':
+        if not os.path.isfile('dump.xml'):
+            log.warning("Не могу найти dump.xml в этой директории")
+            input("Нажмите Enter чтобы выйти...")
+            exit(2)
+
+    else:
+        if not os.path.isfile(f):
+            log.warning(f"Can't find {f}")
+            input("Нажмите Enter чтобы выйти...")
+            exit(3)
+
+    opend=[]
+    domain_mask_list = []
+    url_list = []
+    type_ip_list = []
+    ####################################
+    ############ dump parse ############
+    ####################################
+    if f!='':
+        f = open(f,'r')
+        for line in f:
+            url = line.strip()
+            if not urlregex.match(url):
+                log.warning(f'wrong url: {url}')
+                input("Нажмите Enter чтобы выйти...")
+                exit(4)
+            proto = getproto(url)
+            if not proto in ['http','https','newcamd525','mgcamd525']:
+                log.warning(f"Ошибка определения протокола: {url}")
+                input("Нажмите Enter чтобы выйти...")
+                exit(5)
+            urldomain, port = getdomain(url,proto)
+            url_list.append([proto]+[url]+[True])
+        f.close()
+    else:
+        log.info(f"[ok] Начали разбирать dump.xml")
+        log.info(f'[start] dump parse {datetime.datetime.now()}')
+        dump_parse('dump.xml')
+        log.info(f'[finish] dump parse {datetime.datetime.now()} ')
+
+    log.info(f"[ok] Получаем subdomains...")
+    log.info(f'[start] subdomains {datetime.datetime.now()} ')
+    import ctfr_script
+    subdomains = []
+    for d in range(0, len(domain_mask_list)-1):
+        if d == 10:
+            break
+        else:
+            try:
+                domain_mask_temp = []
+                domain_mask_temp = ctfr_script.main(domain_mask_list[randint(0, len(domain_mask_list)-1)])
+                for domain_mask in domain_mask_temp:
+                    if domain_mask:
+                        subdomains.append(['http',"http://" + domain_mask]+[True])
+                        subdomains.append(['https',"https://" + domain_mask]+[True])
+                        log.debug(f'[ok] {domain_mask}')
+            except Exception:
+                log.debug(f"[f] Не удалось получить subdomain {domain_mask_temp}")
+    log.info(f'[finish] subdomains {datetime.datetime.now()}')
+    ####################################
+    ########### TYPE-IP check ##########
+    ####################################
+    log.info(f"[O] Количество URL(type-ip) для проверки: {str(len(type_ip_list))}")
+    # input("Нажмите Enter чтобы перейти к проверке...")
+    if not type_ip_list:
+        log.critical(f"[f] Nothing to do")
+        input("Нажмите Enter чтобы перейти к проверке url-filtering...\n")
+    else:
+        from is_port_open import is_open, conn_threads, close_threads, statistics
+        import is_port_open
+        check_ip_thread_list = []
+        try:
+            for ip in type_ip_list:
+                check_ip_thread = conn_threads(is_open, ip, 4)
+                check_ip_thread_list.append(check_ip_thread)
+                if int(len(check_ip_thread_list)) > int(n_ip_threads):
+                    map(close_threads, check_ip_thread_list) # в функцию close threads передаем элементы списка с помощью map
+                    log.debug('GC is Working!\n')
+                    check_ip_thread_list = []
+                    time.sleep(3) # helps to fix crash at windows
+                    #try make parallel gc and create new ones
+        except KeyboardInterrupt:
+            log.critical("\nCtrl-c! Остановка всех потоков...")
+            exit(1)
+
+    log.info(f'[ok] TYPE IP CHECK FINISHED\n')
+
+    log.info('''Summary brief:
+     {} \n
+     {} \n
+     {} \n
+     {}
+     '''.format(colored(f'[f] Opened ports {str(is_port_open.count_opened)}', 'red'),
+                colored(f'[f] No rst received {str(is_port_open.count_no_rst)}', 'red'),
+                colored(f'[f] Dst unreachable {str(is_port_open.count_dest_unreach)}', 'red'),
+                colored(f'[ok] Closed ports {str(is_port_open.count_closed)}', 'green')
+                ))
+    log.info(f'Details in type_ip_stat.txt')
+
     try:
-        for ip in type_ip_list:
-            check_ip_thread = conn_threads(is_open, ip, 4)
-            check_ip_thread_list.append(check_ip_thread)
-            if int(len(check_ip_thread_list)) > int(n_ip_threads):
-                map(close_threads, check_ip_thread_list) # в функцию close threads передаем элементы списка с помощью map
-                log.debug('GC is Working!\n')
-                check_ip_thread_list = []
-                time.sleep(3) # helps to fix crash at windows
-                #try make parallel gc and create new ones
-    except KeyboardInterrupt:
-        log.critical("\nCtrl-c! Остановка всех потоков...")
-        exit(1)
-
-log.info('TYPE IP CHECK FINISHED\n')
-# log.info('Summary brief: ')
-log.info('''Summary brief:
- {} \n
- {} \n
- {} \n
- {}
- '''.format(colored(f'[f] Opened ports {str(is_port_open.count_opened)}', 'red'),
-            colored(f'[f] No rst received {str(is_port_open.count_no_rst)}', 'red'),
-            colored(f'[f] Dst unreachable {str(is_port_open.count_dest_unreach)}', 'red'),
-            colored(f'[ok] Closed ports {str(is_port_open.count_closed)}', 'green')
-            ))
-log.info('Details in type_ip_stat.txt')
-
-try:
-    with open('type_ip_stat.txt', 'w') as f:
-        stats = '\n'.join(statistics)
-        f.write(stats)
-except OSError:
-    with open('type_ip_stat.txt.new', 'w') as f:
+        with open('type_ip_stat.txt', 'w') as f:
             stats = '\n'.join(statistics)
             f.write(stats)
+    except OSError:
+        with open('type_ip_stat.txt.new', 'w') as f:
+                stats = '\n'.join(statistics)
+                f.write(stats)
 
-log.info("[O] Количество URL для проверки: " + str(total))
-input("Нажмите Enter чтобы перейти к проверке...")
-if total==0:
-    log.critical("Nothing to do")
-    input("Нажмите Enter чтобы выйти...")
-    exit(0)
-
-
-url_list_lock = Lock()
-workerthreadlist=[]
-for x in range(0,n_threads-1):
-    newthread = WorkerThread(url_list,url_list_lock,regexp,timeout,verbose)
-    workerthreadlist.append(newthread)
-    newthread.start()
-
-while len(workerthreadlist) > 0:
-    try:
-        workerthreadlist = [t.join(1) for t in workerthreadlist if t is not None and t.isAlive()]
-    except KeyboardInterrupt:
-        log.warning("\nCtrl-c! Остановка всех потоков...")
-        for t in workerthreadlist:
-            t.kill_received = True
-        exit(0)
-
-print()
-perc = len(opend)*100/total
-print(colored("[f]",'cyan'), end="") if perc else print(colored("[ok]",'cyan'),end="")
-print (colored(f" Процент открывшихся сайтов: {str(perc)}%", 'cyan'))
-if perc:
-    log.warning("[f] Открывшиеся сайты:")
-    for url in opend:
-        log.warning(f"\t[f] {url}")
-    input("Нажмите Enter чтобы выйти...")
+    domains_check(subdomains, 'subdomains')
+    domains_check(url_list, 'urls')
