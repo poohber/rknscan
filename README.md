@@ -1,7 +1,7 @@
-#RKNScanner
+# RKNScanner
 Scanner for testing DPI + ability to scan Roskomnadzor registry and custom lists
 
-##Requirements
+## Requirements
 ```
 pyOpenSSL 
 ndg-httpsclient 
@@ -13,6 +13,9 @@ termcolor
 for dump download
 
 suds-jurko
+netaddr
+requests
+
 ```
 
 ## Usage
@@ -41,6 +44,8 @@ Options:
                         замененным доменом на IP адрес (в случае реестра
                         Роскомнадзора)
   -c, --console         Запуск в консольном режиме (без интерактива)
+  
+  -d --debug            запуск в debug режиме
 
 ```
 
