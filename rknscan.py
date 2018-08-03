@@ -2,8 +2,6 @@
 #-*- coding: utf-8 -*-
 #from urllib import urlopen
 
-
-
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -25,10 +23,9 @@ from netaddr import IPNetwork
 from queue import Queue, Empty
 from requests.exceptions import ConnectionError
 import logging
-from color_log import log
 import datetime
 
-
+from color_log import log
 
 #turn on coloring on windows
 colorama.init()
