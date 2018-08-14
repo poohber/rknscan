@@ -10,6 +10,7 @@
 import re
 import json
 import requests
+import datetime
 
 ## # CONTEXT VARIABLES # ##
 version = 1.2
@@ -34,9 +35,12 @@ def save_subdomains(subdomain,output_file):
 def main(domain):
 	subdomains = []
 	target = domain
-	req = requests.get("https://crt.sh/?q=%.{d}&output=json".format(d=target))
-	if req.status_code != 200:
-		print("[X] Information not available!") 
+	try:
+            req = requests.get("https://crt.sh/?q=%.{d}&output=json".format(d=target), timeout=30)
+            if req.status_code != 200:
+                print('')
+	except:
+            print('Request didnt dive n answer!')
 	json_data = json.loads('[{}]'.format(req.text.replace('}{', '},{')))
 	for (key,value) in enumerate(json_data):
 		subdomains.append(value['name_value'])

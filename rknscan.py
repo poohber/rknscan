@@ -179,7 +179,7 @@ def _get_a_records(sitelist, timeout, dnsserver=None):
     return sorted(result)
 
 def _dpi_send(host, port, data, fragment_size=0, fragment_count=0):
-    sock = socket.create_connection((host, port), 10)
+    sock = socket.create_connection((host, port), 5)
     if fragment_count:
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
     try:
@@ -367,7 +367,10 @@ class WorkerThread(Thread):
     if nextproto in ['http','https']:
         try:
             if os.path.isfile('cacert.pem'):
-                page = requests.get(nexturl.replace("%20", " "),timeout=self.timeout,verify='cacert.pem').text
+                try:
+                    page = requests.get(nexturl.replace("%20", " "),timeout=self.timeout,verify='cacert.pem').text
+                except:
+                    print('')
             else:
                 page = requests.get(nexturl.replace("%20", " "),timeout=self.timeout).text
         except Exception as e:
@@ -503,7 +506,7 @@ if __name__ == '__main__':
 
     test_dns()
     test_dpi()
-    # input("Нажмите Enter чтобы продолжить...")
+    input("Нажмите Enter чтобы продолжить...")
     if f=='':
         if not os.path.isfile('dump.xml'):
             log.warning("Не могу найти dump.xml в этой директории")
@@ -547,23 +550,26 @@ if __name__ == '__main__':
 
     log.info(f"[ok] Получаем subdomains...")
     log.info(f'[start] subdomains {datetime.datetime.now()} ')
-    import ctfr_script
     subdomains = []
-    for d in range(0, len(domain_mask_list)-1):
-        if d == 10:
-            break
-        else:
-            try:
-                domain_mask_temp = []
-                domain_mask_temp = ctfr_script.main(domain_mask_list[randint(0, len(domain_mask_list)-1)])
-                for domain_mask in domain_mask_temp:
-                    if domain_mask:
-                        subdomains.append(['http',"http://" + domain_mask]+[True])
-                        subdomains.append(['https',"https://" + domain_mask]+[True])
-                        log.debug(f'[ok] {domain_mask}')
-            except Exception:
-                log.debug(f"[f] Не удалось получить subdomain {domain_mask_temp}")
-    log.info(f'[finish] subdomains {datetime.datetime.now()}')
+    import ctfr_script
+
+    while len( subdomains) == 0:
+        for d in range(0, len(domain_mask_list)-1):
+            if d == 7:
+                break
+            else:
+                try:
+                    domain_mask_temp = []
+                    domain_mask_temp = ctfr_script.main(domain_mask_list[randint(0, len(domain_mask_list)-1)])
+                    for domain_mask in domain_mask_temp:
+                        if domain_mask:
+                            subdomains.append(['http',"http://" + domain_mask]+[True])
+                            subdomains.append(['https',"https://" + domain_mask]+[True])
+                            log.debug(f'[ok] {domain_mask}')
+                except Exception:
+                    log.debug(f"[f] Не удалось получить subdomain {domain_mask_temp}")
+        log.info(f'[finish] subdomains {datetime.datetime.now()}')
+    #print(subdomains)
     ####################################
     ########### TYPE-IP check ##########
     ####################################
@@ -585,7 +591,7 @@ if __name__ == '__main__':
                     log.debug('GC is Working!\n')
                     check_ip_thread_list = []
                     time.sleep(3) # helps to fix crash at windows
-                    #try make parallel gc and create new ones
+                    # TODO try make parallel gc and create new ones
         except KeyboardInterrupt:
             log.critical("\nCtrl-c! Остановка всех потоков...")
             exit(1)
