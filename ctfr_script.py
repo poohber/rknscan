@@ -23,7 +23,7 @@ def parse_args():
 	parser.add_argument('-d', '--domain', type=str, required=True, help="Target domain.")
 	parser.add_argument('-o', '--output', type=str, help="Output file.")
 	return parser.parse_args()
-	
+
 def clear_url(target):
 	return re.sub('.*www\.','',target,1).split('/')[0].strip()
 
@@ -41,7 +41,7 @@ def main(domain):
                 print('')
 	except:
             print('Request didnt dive n answer!')
-	json_data = json.loads('[{}]'.format(req.text.replace('}{', '},{')))
+	json_data = json.loads('{}'.format(req.text.replace('}{', '},{')))
 	for (key,value) in enumerate(json_data):
 		subdomains.append(value['name_value'])
 	subdomains = sorted(set(subdomains))
